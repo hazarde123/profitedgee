@@ -1,19 +1,49 @@
 import axios from 'axios';
 
-const DEEPL_API_KEY = 'c39671a9-1c88-4791-bf68-6cd7facc28c9:fx';
-const DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
+const MS_TRANSLATOR_API_KEY = '9CrAKRSHmt9OtYi8Fk0xG8nrGuLKVdUTDuKRtnD2G6p3NmrtA8IpJQQJ99BDAC1i4TkXJ3w3AAAbACOG6njJ';
+const MS_TRANSLATOR_ENDPOINT = 'https://api.cognitive.microsofttranslator.com/';
+const MS_TRANSLATOR_LOCATION = 'centralus';
 
-// DeepL officially supported language codes
-// https://www.deepl.com/docs-api/translate-text
-const DEEPL_LANGUAGE_MAPPING = {
-  'EN': 'EN', // English
-  'ES': 'ES', // Spanish
-  'FR': 'FR', // French
-  'DE': 'DE', // German
-  'ZH': 'ZH', // Chinese
-  'JA': 'JA', // Japanese
-  'KO': 'KO', // Korean
-  'AR': 'AR'  // Arabic
+// Rate limiting configuration
+const RATE_LIMIT = {
+  maxRequests: 100, // Maximum requests per minute
+  timeWindow: 60 * 1000, // 1 minute in milliseconds
+  retryAfter: 2000, // Wait 2 seconds before retrying
+  maxRetries: 3 // Maximum number of retries
+};
+
+// Rate limiting state
+let requestCount = 0;
+let lastResetTime = Date.now();
+
+// Reset rate limit counter
+function resetRateLimit() {
+  const now = Date.now();
+  if (now - lastResetTime >= RATE_LIMIT.timeWindow) {
+    requestCount = 0;
+    lastResetTime = now;
+  }
+}
+
+// Check if we can make a request
+function canMakeRequest(): boolean {
+  resetRateLimit();
+  return requestCount < RATE_LIMIT.maxRequests;
+}
+
+// Sleep function for delay
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Microsoft Translator supported language codes
+const MS_LANGUAGE_MAPPING = {
+  'EN': 'en', // English
+  'ES': 'es', // Spanish
+  'FR': 'fr', // French
+  'DE': 'de', // German
+  'ZH': 'zh-Hans', // Chinese (Simplified)
+  'JA': 'ja', // Japanese
+  'KO': 'ko', // Korean
+  'AR': 'ar'  // Arabic
 } as const;
 
 export const SUPPORTED_LANGUAGES = [
@@ -39,74 +69,107 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
   if (from === to) return texts;
   if (!texts.length) return [];
   
-  try {
-    console.log(`[Translation] Attempting to translate ${texts.length} texts from ${from} to ${to}`);
-    
-    // Convert language codes to DeepL format
-    const deeplSourceLang = DEEPL_LANGUAGE_MAPPING[from];
-    const deeplTargetLang = DEEPL_LANGUAGE_MAPPING[to];
-    
-    if (!deeplSourceLang || !deeplTargetLang) {
-      throw new Error('Unsupported language code');
-    }
+  let retries = 0;
+  
+  while (retries <= RATE_LIMIT.maxRetries) {
+    try {
+      if (!canMakeRequest()) {
+        console.log('[Translation] Rate limit reached, waiting...');
+        await sleep(RATE_LIMIT.retryAfter);
+        continue;
+      }
 
-    console.log('[Translation] Language mapping:', {
-      from,
-      to,
-      mappedSourceLang: deeplSourceLang,
-      mappedTargetLang: deeplTargetLang
-    });
+      console.log(`[Translation] Attempting to translate ${texts.length} texts from ${from} to ${to}`);
+      
+      // Convert language codes to Microsoft format
+      const msSourceLang = MS_LANGUAGE_MAPPING[from];
+      const msTargetLang = MS_LANGUAGE_MAPPING[to];
+      
+      if (!msSourceLang || !msTargetLang) {
+        throw new Error('Unsupported language code');
+      }
 
-    const formData = new URLSearchParams();
-    texts.forEach(text => formData.append('text', text));
-    
-    // Only include source_lang if not English (DeepL default)
-    if (deeplSourceLang !== 'EN') {
-      formData.append('source_lang', deeplSourceLang);
-    }
-    formData.append('target_lang', deeplTargetLang);
+      // Split texts into smaller batches to avoid hitting limits
+      const batchSize = 25;
+      const textBatches = [];
+      for (let i = 0; i < texts.length; i += batchSize) {
+        textBatches.push(texts.slice(i, i + batchSize));
+      }
 
-    console.log('[Translation] Sending request with params:', {
-      ...(deeplSourceLang !== 'EN' ? { source_lang: deeplSourceLang } : {}),
-      target_lang: deeplTargetLang,
-      text_count: texts.length
-    });
+      const allTranslations = [];
+      for (const batch of textBatches) {
+        // Prepare request body
+        const requestBody = batch.map(text => ({
+          text
+        }));
 
-    const response = await axios.post(DEEPL_API_URL, formData, {
-      headers: {
-        'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      timeout: 30000,
-      validateStatus: (status) => status === 200,
-    });
+        requestCount++;
+        const response = await axios.post(
+          `${MS_TRANSLATOR_ENDPOINT}translate`,
+          requestBody,
+          {
+            params: {
+              'api-version': '3.0',
+              from: msSourceLang,
+              to: msTargetLang
+            },
+            headers: {
+              'Ocp-Apim-Subscription-Key': MS_TRANSLATOR_API_KEY,
+              'Ocp-Apim-Subscription-Region': MS_TRANSLATOR_LOCATION,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          }
+        );
 
-    if (!response.data?.translations || !Array.isArray(response.data.translations)) {
-      console.error('[Translation] Invalid response format:', response.data);
-      throw new Error('Invalid response format from DeepL API');
-    }
+        if (!Array.isArray(response.data)) {
+          throw new Error('Invalid response format from Microsoft Translator API');
+        }
 
-    console.log('[Translation] Success:', {
-      requested: texts.length,
-      received: response.data.translations.length
-    });
+        allTranslations.push(...response.data.map((item: any) => item.translations[0].text));
+        
+        // Add a small delay between batches
+        if (textBatches.length > 1) {
+          await sleep(200);
+        }
+      }
 
-    return response.data.translations.map((t: any) => t.text as string);
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const details = error.response?.data?.message || error.message;
-      console.error('[Translation] API error:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        details,
-        requestConfig: error.config
+      console.log('[Translation] Success:', {
+        requested: texts.length,
+        received: allTranslations.length
       });
-      throw new Error(`Translation failed: ${details}`);
+
+      return allTranslations;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const details = error.response?.data?.error?.message || error.message;
+        
+        // Handle rate limit errors
+        if (status === 429 || (details && details.includes('exceeded request limits'))) {
+          retries++;
+          if (retries <= RATE_LIMIT.maxRetries) {
+            console.log(`[Translation] Rate limit hit, retrying (${retries}/${RATE_LIMIT.maxRetries})...`);
+            await sleep(RATE_LIMIT.retryAfter * retries); // Exponential backoff
+            continue;
+          }
+        }
+        
+        console.error('[Translation] API error:', {
+          status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          details,
+          requestConfig: error.config
+        });
+        throw new Error(`Translation failed: ${details}`);
+      }
+      console.error('[Translation] Unexpected error:', error);
+      throw error;
     }
-    console.error('[Translation] Unexpected error:', error);
-    throw error;
   }
+
+  throw new Error('Translation failed: Maximum retries exceeded');
 }
 
 // Keep single text translation for compatibility
