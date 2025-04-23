@@ -100,7 +100,7 @@ export async function POST(request: Request) {
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Translation timeout')), TIMEOUT)
           )
-        ]);
+        ]) as string[];  // Add type assertion here
 
         console.log('[API] Batch translation successful:', {
           textCount: translations.length
