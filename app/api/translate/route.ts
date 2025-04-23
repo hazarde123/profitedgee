@@ -1,5 +1,6 @@
 import { translateBatch, translateText, type LanguageCode } from '@/lib/translation-server';
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 
 // Set a timeout for the entire request
 const TIMEOUT = 30000; // 30 seconds
@@ -32,14 +33,38 @@ function isRateLimited(clientId: string): boolean {
   return false;
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 export async function POST(request: Request) {
   try {
+    // Add CORS headers
+    const headersList = await headers();
+    const origin = headersList.get('origin') || '*';
+    
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
     // Check rate limit
-    const clientId = request.headers.get('x-forwarded-for') || 'unknown';
+    const clientId = headersList.get('x-forwarded-for') || 'unknown';
     if (isRateLimited(clientId)) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
+        { 
+          status: 429,
+          headers: corsHeaders
+        }
       );
     }
 
@@ -50,17 +75,39 @@ export async function POST(request: Request) {
       if (!body.texts.length || !body.from || !body.to) {
         return NextResponse.json(
           { error: 'Missing required fields' },
-          { status: 400 }
+          { 
+            status: 400,
+            headers: corsHeaders
+          }
         );
       }
 
-      const translations = await translateBatch({
-        texts: body.texts,
-        from: body.from.toUpperCase() as LanguageCode,
-        to: body.to.toUpperCase() as LanguageCode
-      });
+      try {
+        const translations = await Promise.race([
+          translateBatch({
+            texts: body.texts,
+            from: body.from.toUpperCase() as LanguageCode,
+            to: body.to.toUpperCase() as LanguageCode
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Translation timeout')), TIMEOUT)
+          )
+        ]);
 
-      return NextResponse.json({ translations });
+        return NextResponse.json(
+          { translations }, 
+          { headers: corsHeaders }
+        );
+      } catch (error) {
+        console.error('Translation error:', error);
+        return NextResponse.json(
+          { error: 'Translation failed', details: error instanceof Error ? error.message : String(error) },
+          { 
+            status: 500,
+            headers: corsHeaders
+          }
+        );
+      }
     }
     
     // Handle single text translation
@@ -69,22 +116,51 @@ export async function POST(request: Request) {
     if (!text || !from || !to) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       );
     }
 
-    const translation = await translateText(
-      text,
-      from.toUpperCase() as LanguageCode,
-      to.toUpperCase() as LanguageCode
-    );
+    try {
+      const translation = await Promise.race([
+        translateText(
+          text,
+          from.toUpperCase() as LanguageCode,
+          to.toUpperCase() as LanguageCode
+        ),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Translation timeout')), TIMEOUT)
+        )
+      ]);
 
-    return NextResponse.json({ translation });
+      return NextResponse.json(
+        { translation },
+        { headers: corsHeaders }
+      );
+    } catch (error) {
+      console.error('Translation error:', error);
+      return NextResponse.json(
+        { error: 'Translation failed', details: error instanceof Error ? error.message : String(error) },
+        { 
+          status: 500,
+          headers: corsHeaders
+        }
+      );
+    }
   } catch (error) {
-    console.error('Translation error:', error);
+    console.error('Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Translation failed', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { error: 'An unexpected error occurred', details: error instanceof Error ? error.message : String(error) },
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        }
+      }
     );
   }
 }
