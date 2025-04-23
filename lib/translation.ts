@@ -11,12 +11,14 @@ const CACHE_KEY = 'translation_cache';
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CacheEntry {
-  translations: Record<string, string>;
+  translation: string;
   timestamp: number;
 }
 
 interface TranslationCache {
-  [key: string]: CacheEntry;
+  [lang: string]: {
+    [text: string]: CacheEntry;
+  };
 }
 
 const getApiEndpoint = () => {
@@ -27,8 +29,8 @@ const getApiEndpoint = () => {
 };
 
 class TranslationManager {
-  private batchSize = 50;
-  private batchTimeout = 100;
+  private batchSize = 20; // Maximum batch size for translations
+  private batchTimeout = 200; // Batch collection window
   private pending: Map<string, string[]> = new Map();
   private timeoutId: NodeJS.Timeout | null = null;
   private cache: TranslationCache;
@@ -43,18 +45,20 @@ class TranslationManager {
 
   private loadCache(): TranslationCache {
     if (!this.isClient()) return {};
-
+    
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
-        const parsedCache = JSON.parse(cached) as TranslationCache;
+        const parsed = JSON.parse(cached);
         // Clear expired entries
-        Object.entries(parsedCache).forEach(([lang, entry]) => {
-          if (Date.now() - entry.timestamp > CACHE_EXPIRY) {
-            delete parsedCache[lang];
-          }
+        Object.keys(parsed).forEach(lang => {
+          Object.keys(parsed[lang]).forEach(text => {
+            if (Date.now() - parsed[lang][text].timestamp > CACHE_EXPIRY) {
+              delete parsed[lang][text];
+            }
+          });
         });
-        return parsedCache;
+        return parsed;
       }
     } catch (error) {
       console.error('Error loading translation cache:', error);
@@ -64,7 +68,6 @@ class TranslationManager {
 
   private saveCache() {
     if (!this.isClient()) return;
-
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(this.cache));
     } catch (error) {
@@ -73,27 +76,31 @@ class TranslationManager {
   }
 
   getCachedTranslation(text: string, lang: LanguageCode): string | null {
-    const entry = this.cache[lang];
-    if (entry && Date.now() - entry.timestamp < CACHE_EXPIRY) {
-      return entry.translations[text] || null;
+    const cached = this.cache[lang]?.[text];
+    if (cached && Date.now() - cached.timestamp <= CACHE_EXPIRY) {
+      return cached.translation;
     }
     return null;
   }
 
   private setCachedTranslation(texts: string[], translations: string[], lang: LanguageCode) {
-    const entry = this.cache[lang] || { translations: {}, timestamp: Date.now() };
+    if (!this.cache[lang]) {
+      this.cache[lang] = {};
+    }
+    
     texts.forEach((text, i) => {
-      entry.translations[text] = translations[i];
+      this.cache[lang][text] = {
+        translation: translations[i],
+        timestamp: Date.now()
+      };
     });
-    this.cache[lang] = entry;
+    
     this.saveCache();
   }
 
   clearCache(lang: LanguageCode) {
-    if (this.cache[lang]) {
-      delete this.cache[lang];
-      this.saveCache();
-    }
+    delete this.cache[lang];
+    this.saveCache();
   }
 
   async translateBatch(lang: LanguageCode, setTranslations: (updates: Record<string, string>) => void) {
@@ -103,6 +110,8 @@ class TranslationManager {
     this.pending.delete(lang);
     
     try {
+      console.log(`[Translation Manager] Translating batch of ${texts.length} texts to ${lang}`);
+      
       const response = await axios.post(getApiEndpoint(), {
         texts,
         from: 'EN',
@@ -111,7 +120,7 @@ class TranslationManager {
         headers: {
           'Content-Type': 'application/json',
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 20000, // 20 second timeout
       });
 
       const { translations } = response.data;
@@ -124,7 +133,7 @@ class TranslationManager {
         this.setCachedTranslation(texts, translations, lang);
       }
     } catch (error) {
-      console.error('Batch translation error:', error);
+      console.error('[Translation Manager] Batch translation error:', error);
       // On error, clear pending texts to prevent infinite retries
       this.pending.clear();
     }
@@ -177,6 +186,7 @@ export function useTranslation() {
     // Save language preference and clear translations when language changes
     if (typeof window !== 'undefined') {
       localStorage.setItem('preferred_language', currentLanguage);
+      
       if (translationManager.current) {
         // Clear cache for the new language to force fresh translations
         translationManager.current.clearCache(currentLanguage);
@@ -194,12 +204,12 @@ export function useTranslation() {
     const lang = targetLang || currentLanguage;
     if (lang === 'EN') return text;
 
-    // Check in-memory cache
+    // Check in-memory cache first
     if (translations[text]?.[lang]) {
       return translations[text][lang];
     }
 
-    // Check persistent cache
+    // Then check persistent cache
     const cached = translationManager.current.getCachedTranslation(text, lang);
     if (cached) {
       setTranslations(prev => ({
@@ -209,7 +219,7 @@ export function useTranslation() {
       return cached;
     }
 
-    // Queue for translation
+    // Queue for translation if not cached
     translationManager.current.queueTranslation(text, lang, (updates) => {
       setTranslations(prev => {
         const newTranslations = { ...prev };
@@ -223,8 +233,8 @@ export function useTranslation() {
       });
     });
 
-    return text;
-  }, [currentLanguage, translations, forceUpdate]); // Add forceUpdate to dependencies
+    return text; // Return original text while translation is pending
+  }, [currentLanguage, translations, forceUpdate]);
 
   return {
     currentLanguage,

@@ -10,7 +10,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import { ArrowRight, Bitcoin, Shield, TrendingUp, DollarSign, CheckCircle2, HelpCircle, Mail, Phone, MapPin, ExternalLink, ChevronRight, Quote, Coins, CircleDollarSign, Gem, Waves } from "lucide-react";
+import { ArrowRight, Bitcoin, Shield, TrendingUp, DollarSign, CheckCircle2, HelpCircle, Mail, Phone, MapPin, ExternalLink, ChevronRight, Quote, Coins, CircleDollarSign, Gem, Waves, Menu } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/translation";
@@ -294,6 +294,7 @@ function CryptoTicker() {
 
 export default function Home() {
   const { currentLanguage, setCurrentLanguage, translate } = useTranslation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [translatedContent, setTranslatedContent] = useState({
     hero: {
       title: translate("Your Gateway to Smart Crypto Investments"),
@@ -329,6 +330,10 @@ export default function Home() {
     });
   }, [currentLanguage, translate]);
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-black">
       {/* Navigation */}
@@ -338,6 +343,8 @@ export default function Home() {
             <Bitcoin className="h-8 w-8 text-blue-600" />
             <span className="text-2xl font-bold text-blue-600">Profitedge</span>
           </div>
+          
+          {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
             <a href="#about" className="text-gray-600 hover:text-blue-600">{translate("About")}</a>
             <a href="#plans" className="text-gray-600 hover:text-blue-600">{translate("Plans")}</a>
@@ -347,17 +354,46 @@ export default function Home() {
               currentLanguage={currentLanguage}
               onLanguageChange={setCurrentLanguage}
             />
+            <div className="flex space-x-4">
+              <Link href="/login">
+                <Button variant="outline">{translate("Login")}</Button>
+              </Link>
+              <Link href="/signup">
+                <Button>{translate("Sign Up")}</Button>
+              </Link>
+            </div>
           </div>
-          <div className="flex space-x-4">
-            <Link href="/login">
-              <Button variant="outline">{translate("Login")}</Button>
-            </Link>
-            <Link href="/signup">
-              <Button>{translate("Sign Up")}</Button>
-            </Link>
+
+          {/* Mobile Menu Toggle */}
+          <div className="md:hidden flex items-center space-x-4">
+            <LanguageSelector 
+              currentLanguage={currentLanguage}
+              onLanguageChange={setCurrentLanguage}
+            />
+            <Button variant="ghost" size="sm" className="p-2" onClick={toggleMobileMenu}>
+              <Menu className="h-6 w-6" />
+            </Button>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Menu Dropdown */}
+      <div className={`md:hidden ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
+        <div className="px-4 pt-2 pb-3 space-y-1">
+          <a href="#about" className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-blue-600">{translate("About")}</a>
+          <a href="#plans" className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-blue-600">{translate("Plans")}</a>
+          <a href="#how-it-works" className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-blue-600">{translate("How It Works")}</a>
+          <a href="#contact" className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-blue-600">{translate("Contact")}</a>
+          <div className="flex space-x-4 px-3 py-2">
+            <Link href="/login" className="w-full">
+              <Button variant="outline" className="w-full">{translate("Login")}</Button>
+            </Link>
+            <Link href="/signup" className="w-full">
+              <Button className="w-full">{translate("Sign Up")}</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* Crypto Ticker */}
       <CryptoTicker />

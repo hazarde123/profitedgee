@@ -1,21 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable API routes in production
+  // Remove static export to enable API routes
+  reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
   webpack: (config, { isServer }) => {
-    // Add the undici alias to resolve configuration
     config.resolve = {
       ...config.resolve,
       alias: {
         ...config.resolve.alias,
-        'undici': false  // Force use of node's native fetch
+        'undici': false
       }
     };
 
-    // Add rules to handle Firebase and undici modules
     config.module.rules.push({
       test: /\.(mjs|js|jsx|ts|tsx)$/,
       include: [

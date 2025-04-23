@@ -61,28 +61,36 @@ export async function POST(request: Request) {
     if (isRateLimited(clientId)) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
-        { 
-          status: 429,
-          headers: corsHeaders
-        }
+        { status: 429, headers: corsHeaders }
       );
     }
 
     const body = await request.json();
+
+    // Validate request body
+    if (!body) {
+      return NextResponse.json(
+        { error: 'Missing request body' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
     
     // Handle batch translation request
     if (Array.isArray(body.texts)) {
       if (!body.texts.length || !body.from || !body.to) {
         return NextResponse.json(
-          { error: 'Missing required fields' },
-          { 
-            status: 400,
-            headers: corsHeaders
-          }
+          { error: 'Missing required fields: texts, from, or to' },
+          { status: 400, headers: corsHeaders }
         );
       }
 
       try {
+        console.log('[API] Processing batch translation:', {
+          textCount: body.texts.length,
+          from: body.from,
+          to: body.to
+        });
+
         const translations = await Promise.race([
           translateBatch({
             texts: body.texts,
@@ -94,18 +102,19 @@ export async function POST(request: Request) {
           )
         ]);
 
-        return NextResponse.json(
-          { translations }, 
-          { headers: corsHeaders }
-        );
+        console.log('[API] Batch translation successful:', {
+          textCount: translations.length
+        });
+
+        return NextResponse.json({ translations }, { headers: corsHeaders });
       } catch (error) {
-        console.error('Translation error:', error);
+        console.error('[API] Translation error:', error);
         return NextResponse.json(
-          { error: 'Translation failed', details: error instanceof Error ? error.message : String(error) },
           { 
-            status: 500,
-            headers: corsHeaders
-          }
+            error: 'Translation failed', 
+            details: error instanceof Error ? error.message : String(error),
+          },
+          { status: 500, headers: corsHeaders }
         );
       }
     }
@@ -115,15 +124,18 @@ export async function POST(request: Request) {
     
     if (!text || !from || !to) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
-        { 
-          status: 400,
-          headers: corsHeaders
-        }
+        { error: 'Missing required fields: text, from, or to' },
+        { status: 400, headers: corsHeaders }
       );
     }
 
     try {
+      console.log('[API] Processing single translation:', {
+        textLength: text.length,
+        from,
+        to
+      });
+
       const translation = await Promise.race([
         translateText(
           text,
@@ -135,24 +147,26 @@ export async function POST(request: Request) {
         )
       ]);
 
-      return NextResponse.json(
-        { translation },
-        { headers: corsHeaders }
-      );
+      console.log('[API] Single translation successful');
+
+      return NextResponse.json({ translation }, { headers: corsHeaders });
     } catch (error) {
-      console.error('Translation error:', error);
+      console.error('[API] Translation error:', error);
       return NextResponse.json(
-        { error: 'Translation failed', details: error instanceof Error ? error.message : String(error) },
         { 
-          status: 500,
-          headers: corsHeaders
-        }
+          error: 'Translation failed', 
+          details: error instanceof Error ? error.message : String(error),
+        },
+        { status: 500, headers: corsHeaders }
       );
     }
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('[API] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred', details: error instanceof Error ? error.message : String(error) },
+      { 
+        error: 'An unexpected error occurred', 
+        details: error instanceof Error ? error.message : String(error),
+      },
       { 
         status: 500,
         headers: {

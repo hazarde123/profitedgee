@@ -30,12 +30,12 @@ export function LanguageSelector({ currentLanguage, onLanguageChange }: Language
 
   return (
     <Select value={currentLanguage} onValueChange={handleLanguageChange}>
-      <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select a language">
-          {SUPPORTED_LANGUAGES.find(lang => lang.code === currentLanguage)?.name}
+      <SelectTrigger className="w-[80px] md:w-[180px] px-2 md:px-3">
+        <SelectValue placeholder="Lang">
+          {currentLanguage}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="min-w-[100px]">
         <SelectGroup>
           {SUPPORTED_LANGUAGES.map((lang) => (
             <SelectItem key={lang.code} value={lang.code}>
@@ -45,5 +45,5 @@ export function LanguageSelector({ currentLanguage, onLanguageChange }: Language
         </SelectGroup>
       </SelectContent>
     </Select>
-  )
+  );
 }
