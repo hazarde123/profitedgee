@@ -1,20 +1,18 @@
 [build]
   command = "npm run build"
   publish = ".next"
-
+  
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Force Next.js runtime
-[build.environment]
-  NEXT_USE_NETLIFY_EDGE = "true"
-  NEXT_FORCE_EDGE_RUNTIME = "true"
+[functions]
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/next-api/:splat"
+  to = "/.netlify/functions/server/api/:splat"
   status = 200
 
-[functions]
-  node_bundler = "esbuild"
-  external_node_modules = ["@netlify/functions"]
+[build.environment]
+  NEXT_PUBLIC_API_URL = "https://profitedgeeedge.netlify.app"
+  NEXT_TELEMETRY_DISABLED = "1"

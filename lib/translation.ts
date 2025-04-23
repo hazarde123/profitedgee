@@ -23,8 +23,7 @@ const getApiEndpoint = () => {
   if (process.env.NODE_ENV === 'development') {
     return '/api/translate';
   }
-  // In production, use the full URL
-  return '/.netlify/functions/next-api/translate';
+  return '/api/translate'; // Use relative URL, Netlify will handle the redirect
 };
 
 class TranslationManager {
@@ -108,6 +107,11 @@ class TranslationManager {
         texts,
         from: 'EN',
         to: lang,
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000, // 10 second timeout
       });
 
       const { translations } = response.data;
