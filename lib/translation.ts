@@ -19,6 +19,14 @@ interface TranslationCache {
   [key: string]: CacheEntry;
 }
 
+const getApiEndpoint = () => {
+  if (process.env.NODE_ENV === 'development') {
+    return '/api/translate';
+  }
+  // In production, use the full URL
+  return '/.netlify/functions/next-api/translate';
+};
+
 class TranslationManager {
   private batchSize = 50;
   private batchTimeout = 100;
@@ -96,7 +104,7 @@ class TranslationManager {
     this.pending.delete(lang);
     
     try {
-      const response = await axios.post('/api/translate', {
+      const response = await axios.post(getApiEndpoint(), {
         texts,
         from: 'EN',
         to: lang,
@@ -113,6 +121,8 @@ class TranslationManager {
       }
     } catch (error) {
       console.error('Batch translation error:', error);
+      // On error, clear pending texts to prevent infinite retries
+      this.pending.clear();
     }
   }
 

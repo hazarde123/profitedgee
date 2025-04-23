@@ -5,11 +5,16 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Force Next.js runtime
+[build.environment]
+  NEXT_USE_NETLIFY_EDGE = "true"
+  NEXT_FORCE_EDGE_RUNTIME = "true"
+
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/nextjs-server"
+  to = "/.netlify/functions/next-api/:splat"
   status = 200
-  force = true
 
 [functions]
-  external_node_modules = ["@netlify/plugin-nextjs"]
+  node_bundler = "esbuild"
+  external_node_modules = ["@netlify/functions"]
