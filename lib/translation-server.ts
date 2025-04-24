@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCachedTranslation, setCachedTranslation } from './cache-utils';
 
 const MS_TRANSLATOR_API_KEY = '9CrAKRSHmt9OtYi8Fk0xG8nrGuLKVdUTDuKRtnD2G6p3NmrtA8IpJQQJ99BDAC1i4TkXJ3w3AAAbACOG6njJ';
 const MS_TRANSLATOR_ENDPOINT = 'https://api.cognitive.microsofttranslator.com/';
@@ -68,9 +69,31 @@ export interface BatchTranslationRequest {
 export async function translateBatch({ texts, from, to }: BatchTranslationRequest): Promise<string[]> {
   if (from === to) return texts;
   if (!texts.length) return [];
-  
+
+  const results: string[] = [];
+  const textsToTranslate: string[] = [];
+  const cacheIndexMap: number[] = [];
+
+  // Check cache for each text
+  await Promise.all(texts.map(async (text, index) => {
+    const cached = await getCachedTranslation(text, from, to);
+    if (cached) {
+      results[index] = cached;
+    } else {
+      textsToTranslate.push(text);
+      cacheIndexMap.push(index);
+    }
+  }));
+
+  // If all translations were cached, return early
+  if (!textsToTranslate.length) {
+    console.log('[Translation] All translations found in cache');
+    return results;
+  }
+
+  console.log(`[Translation] Cache miss for ${textsToTranslate.length} texts`);
+
   let retries = 0;
-  
   while (retries <= RATE_LIMIT.maxRetries) {
     try {
       if (!canMakeRequest()) {
@@ -79,26 +102,14 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
         continue;
       }
 
-      console.log(`[Translation] Attempting to translate ${texts.length} texts from ${from} to ${to}`);
-      
-      // Convert language codes to Microsoft format
-      const msSourceLang = MS_LANGUAGE_MAPPING[from];
-      const msTargetLang = MS_LANGUAGE_MAPPING[to];
-      
-      if (!msSourceLang || !msTargetLang) {
-        throw new Error('Unsupported language code');
-      }
-
-      // Split texts into smaller batches to avoid hitting limits
+      // Split texts into smaller batches
       const batchSize = 25;
-      const textBatches = [];
-      for (let i = 0; i < texts.length; i += batchSize) {
-        textBatches.push(texts.slice(i, i + batchSize));
+      const textBatches: string[][] = [];
+      for (let i = 0; i < textsToTranslate.length; i += batchSize) {
+        textBatches.push(textsToTranslate.slice(i, i + batchSize));
       }
 
-      const allTranslations = [];
       for (const batch of textBatches) {
-        // Prepare request body
         const requestBody = batch.map(text => ({
           text
         }));
@@ -110,8 +121,8 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
           {
             params: {
               'api-version': '3.0',
-              from: msSourceLang,
-              to: msTargetLang
+              from: MS_LANGUAGE_MAPPING[from],
+              to: MS_LANGUAGE_MAPPING[to]
             },
             headers: {
               'Ocp-Apim-Subscription-Key': MS_TRANSLATOR_API_KEY,
@@ -126,8 +137,16 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
           throw new Error('Invalid response format from Microsoft Translator API');
         }
 
-        allTranslations.push(...response.data.map((item: any) => item.translations[0].text));
+        const translations = response.data.map((item: any) => item.translations[0].text);
         
+        // Cache new translations and insert them at correct positions
+        await Promise.all(translations.map(async (translation, i) => {
+          const text = batch[i];
+          await setCachedTranslation(text, from, to, translation);
+          const originalIndex = cacheIndexMap[textBatches.indexOf(batch) * batchSize + i];
+          results[originalIndex] = translation;
+        }));
+
         // Add a small delay between batches
         if (textBatches.length > 1) {
           await sleep(200);
@@ -136,15 +155,16 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
 
       console.log('[Translation] Success:', {
         requested: texts.length,
-        received: allTranslations.length
+        fromCache: texts.length - textsToTranslate.length,
+        newTranslations: textsToTranslate.length
       });
 
-      return allTranslations;
+      return results;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         const details = error.response?.data?.error?.message || error.message;
-        
+
         // Handle rate limit errors
         if (status === 429 || (details && details.includes('exceeded request limits'))) {
           retries++;
@@ -154,7 +174,7 @@ export async function translateBatch({ texts, from, to }: BatchTranslationReques
             continue;
           }
         }
-        
+
         console.error('[Translation] API error:', {
           status,
           statusText: error.response?.statusText,

@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove static export to enable API routes
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
-  images: { unoptimized: true },
+  images: {
+    domains: ['firebasestorage.googleapis.com'],
+    unoptimized: false // Enable image optimization for Vercel
+  },
   webpack: (config, { isServer }) => {
     config.resolve = {
       ...config.resolve,

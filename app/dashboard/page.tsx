@@ -9,7 +9,33 @@ import { doc, getDoc } from "firebase/firestore";
 import { ArrowUpRight, Coins, DollarSign, TrendingUp, Users, ArrowDownLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { withPageTranslation } from "@/components/withPageTranslation";
 import { useTranslation } from "@/lib/translation";
+
+const defaultContent = {
+  dashboard: "Dashboard",
+  referralCode: "Your Referral Code",
+  loading: "Loading...",
+  copyCode: "Copy Code",
+  totalReferrals: "Total Referrals",
+  referralEarnings: "Referral Earnings",
+  totalBalance: "Total Balance",
+  totalDeposits: "Total Deposits",
+  allTimeDeposits: "All time deposits",
+  activeInvestments: "Active Investments",
+  activeInvestmentPlans: "Active investment plans",
+  totalProfit: "Total Profit",
+  fromLastMonth: "from last month",
+  referralNetwork: "Referral Network",
+  activeReferrals: "Active referrals",
+  investment: "Investment",
+  started: "Started",
+  expected: "Expected",
+  complete: "Complete",
+  noActiveInvestments: "No active investments",
+  referralCopied: "Referral code copied!",
+  shareCode: "Share this code with your friends to earn bonuses"
+};
 
 interface Investment {
   id: string;
@@ -41,26 +67,32 @@ interface UserData {
   totalDeposits: number;
 }
 
-export default function Dashboard() {
+function DashboardPage({ ...translations }: typeof defaultContent) {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [totalProfit, setTotalProfit] = useState(0);
   const [profitChange, setProfitChange] = useState(0);
   const [totalDeposits, setTotalDeposits] = useState(0);
   const { toast } = useToast();
-  const { translate, currentLanguage } = useTranslation();
+  const { currentLanguage } = useTranslation();
 
   // Format numbers according to current language locale
   const formatNumber = useMemo(() => {
-    const locale = currentLanguage === 'EN' ? 'en-US' : 
-                  currentLanguage === 'ES' ? 'es' :
-                  currentLanguage === 'FR' ? 'fr' :
-                  currentLanguage === 'DE' ? 'de' :
-                  currentLanguage === 'ZH' ? 'zh' :
-                  currentLanguage === 'JA' ? 'ja' :
-                  currentLanguage === 'KO' ? 'ko' :
-                  currentLanguage === 'AR' ? 'ar' : 'en-US';
+    const localeMap: { [key: string]: string } = {
+      'EN': 'en-US',
+      'ES': 'es-ES',
+      'FR': 'fr-FR',
+      'DE': 'de-DE',
+      'IT': 'it-IT',
+      'PT': 'pt-PT',
+      'RU': 'ru-RU',
+      'ZH': 'zh-CN',
+      'JA': 'ja-JP',
+      'KO': 'ko-KR',
+      'AR': 'ar-SA'
+    };
     
+    const locale = localeMap[currentLanguage] || 'en-US';
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: 'USD'
@@ -69,16 +101,26 @@ export default function Dashboard() {
 
   // Format dates according to current language locale
   const formatDate = useMemo(() => {
-    const locale = currentLanguage === 'EN' ? 'en-US' : 
-                  currentLanguage === 'ES' ? 'es' :
-                  currentLanguage === 'FR' ? 'fr' :
-                  currentLanguage === 'DE' ? 'de' :
-                  currentLanguage === 'ZH' ? 'zh' :
-                  currentLanguage === 'JA' ? 'ja' :
-                  currentLanguage === 'KO' ? 'ko' :
-                  currentLanguage === 'AR' ? 'ar' : 'en-US';
+    const localeMap: { [key: string]: string } = {
+      'EN': 'en-US',
+      'ES': 'es-ES',
+      'FR': 'fr-FR',
+      'DE': 'de-DE',
+      'IT': 'it-IT',
+      'PT': 'pt-PT',
+      'RU': 'ru-RU',
+      'ZH': 'zh-CN',
+      'JA': 'ja-JP',
+      'KO': 'ko-KR',
+      'AR': 'ar-SA'
+    };
     
-    return new Intl.DateTimeFormat(locale);
+    const locale = localeMap[currentLanguage] || 'en-US';
+    return new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   }, [currentLanguage]);
 
   useEffect(() => {
@@ -178,25 +220,25 @@ export default function Dashboard() {
     if (userData?.myReferralCode) {
       navigator.clipboard.writeText(userData.myReferralCode);
       toast({
-        title: translate("Referral code copied!"),
-        description: translate("Share this code with your friends to earn bonuses"),
+        title: translations.referralCopied,
+        description: translations.shareCode,
       });
     }
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold tracking-tight">{translate("Dashboard")}</h2>
+      <h2 className="text-3xl font-bold tracking-tight">{translations.dashboard}</h2>
       
       {/* Referral Card */}
       <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2">{translate("Your Referral Code")}</h3>
+              <h3 className="text-lg font-semibold mb-2">{translations.referralCode}</h3>
               <div className="flex items-center gap-2">
                 <code className="bg-white/20 px-4 py-2 rounded-md font-mono text-lg">
-                  {userData?.myReferralCode || translate('Loading...')}
+                  {userData?.myReferralCode || translations.loading}
                 </code>
                 <Button
                   variant="secondary"
@@ -205,17 +247,17 @@ export default function Dashboard() {
                   className="whitespace-nowrap"
                   disabled={!userData?.myReferralCode}
                 >
-                  {translate("Copy Code")}
+                  {translations.copyCode}
                 </Button>
               </div>
             </div>
             <div className="flex gap-8">
               <div>
-                <p className="text-sm text-blue-100">{translate("Total Referrals")}</p>
+                <p className="text-sm text-blue-100">{translations.totalReferrals}</p>
                 <p className="text-2xl font-bold">{userData?.referralCount || 0}</p>
               </div>
               <div>
-                <p className="text-sm text-blue-100">{translate("Referral Earnings")}</p>
+                <p className="text-sm text-blue-100">{translations.referralEarnings}</p>
                 <p className="text-2xl font-bold">{formatNumber.format(userData?.totalReferralBonus || 0)}</p>
               </div>
             </div>
@@ -226,7 +268,7 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{translate("Total Balance")}</CardTitle>
+            <CardTitle className="text-sm font-medium">{translations.totalBalance}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -236,20 +278,20 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{translate("Total Deposits")}</CardTitle>
+            <CardTitle className="text-sm font-medium">{translations.totalDeposits}</CardTitle>
             <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatNumber.format(totalDeposits)}</div>
             <p className="text-xs text-muted-foreground">
-              {translate("All time deposits")}
+              {translations.allTimeDeposits}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{translate("Active Investments")}</CardTitle>
+            <CardTitle className="text-sm font-medium">{translations.activeInvestments}</CardTitle>
             <Coins className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -257,70 +299,72 @@ export default function Dashboard() {
               {userData?.investments?.filter(inv => inv.status === 'active').length || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              {translate("Active investment plans")}
+              {translations.activeInvestmentPlans}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{translate("Total Profit")}</CardTitle>
+            <CardTitle className="text-sm font-medium">{translations.totalProfit}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">+{formatNumber.format(totalProfit)}</div>
             <p className="text-xs text-muted-foreground">
-              {profitChange > 0 ? '+' : ''}{profitChange}% {translate("from last month")}
+              {profitChange > 0 ? '+' : ''}{profitChange}% {translations.fromLastMonth}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{translate("Referral Network")}</CardTitle>
+            <CardTitle className="text-sm font-medium">{translations.referralNetwork}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{userData?.referralCount || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {translate("Active referrals")}
+              {translations.activeReferrals}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <h3 className="text-xl font-semibold mt-6 mb-4">{translate("Active Investments")}</h3>
+      <h3 className="text-xl font-semibold mt-6 mb-4">{translations.activeInvestments}</h3>
       <div className="grid gap-4">
         {userData?.investments?.filter(inv => inv.status === 'active').map((investment) => (
           <Card key={investment.id}>
             <CardContent className="pt-6">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold">{translate("Investment")} #{investment.id}</h4>
+                  <h4 className="text-sm font-semibold">{translations.investment} #{investment.id}</h4>
                   <p className="text-sm text-muted-foreground">
-                    {translate("Started")} {formatDate.format(new Date(investment.startDate))}
+                    {translations.started} {formatDate.format(new Date(investment.startDate))}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold">{formatNumber.format(investment.amount)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {translate("Expected")}: {formatNumber.format(investment.expectedReturn)}
+                    {translations.expected}: {formatNumber.format(investment.expectedReturn)}
                   </p>
                 </div>
               </div>
               <Progress value={investment.progress} className="h-2" />
               <p className="text-sm text-muted-foreground mt-2 text-right">
-                {investment.progress}% {translate("Complete")}
+                {investment.progress}% {translations.complete}
               </p>
             </CardContent>
           </Card>
         ))}
         {(!userData?.investments || userData.investments.filter(inv => inv.status === 'active').length === 0) && (
           <div className="text-center py-8 text-muted-foreground">
-            {translate("No active investments")}
+            {translations.noActiveInvestments}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+export default withPageTranslation(DashboardPage, defaultContent);

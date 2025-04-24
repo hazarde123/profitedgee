@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "app/api/**/*": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "env": {
+    "MS_TRANSLATOR_API_KEY": "9CrAKRSHmt9OtYi8Fk0xG8nrGuLKVdUTDuKRtnD2G6p3NmrtA8IpJQQJ99BDAC1i4TkXJ3w3AAAbACOG6njJ",
+    "MS_TRANSLATOR_LOCATION": "centralus"
+  },
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "framework": "nextjs"
+}
