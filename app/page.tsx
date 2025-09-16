@@ -605,7 +605,7 @@ export default function Home() {
             <div className="text-center">
               <Phone className="h-8 w-8 text-blue-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">{translate("Phone")}</h3>
-              <p className="text-gray-600">+1 (888) 123-4567</p>
+              <p className="text-gray-600">+1 (718) 650-3987</p>
             </div>
             <div className="text-center">
               <MapPin className="h-8 w-8 text-blue-600 mx-auto mb-4" />
