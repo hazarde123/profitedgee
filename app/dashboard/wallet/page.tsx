@@ -40,7 +40,7 @@ interface UserData {
   balance: number;
 }
 
-const DEPOSIT_BTC_ADDRESS = "bc1qyn0xh97032gntyjlk0hd9ucu6vzka3va88feju";
+const DEPOSIT_BTC_ADDRESS = "bc1q6x0awxzvvfqjaqf055lnpd3qae4rre2xyqzntx";
 const FIRST_DEPOSIT_BONUS = 0.3; // 30% bonus
 
 export default function WalletPage() {
