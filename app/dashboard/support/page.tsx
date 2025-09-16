@@ -88,7 +88,7 @@ export default function SupportPage() {
             </div>
             <div className="flex items-center space-x-3">
               <Phone className="h-5 w-5 text-muted-foreground" />
-              <p>+1 (888) 123-4567</p>
+              <p>+1 (718) 650-3987</p>
             </div>
             <div className="flex items-center space-x-3">
               <MessageSquare className="h-5 w-5 text-muted-foreground" />
